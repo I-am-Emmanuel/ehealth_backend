@@ -5,6 +5,8 @@ from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerS
 from .models import MedicalPracticioner
 from django.core.exceptions import ObjectDoesNotExist
 from datetime import datetime
+from rest_framework_simplejwt.tokens import RefreshToken
+
 
 class RegisterDoctorAPI(generics.GenericAPIView):
     serializer_class = DoctorSerializer
@@ -12,8 +14,16 @@ class RegisterDoctorAPI(generics.GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response({"user": DoctorSerializer(user).data})
+        user = serializer.save()  # Creates the user
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            "user": DoctorSerializer(user).data,  # Optional: User details
+            "access": str(refresh.access_token),  # JWT access token
+            "refresh": str(refresh),              # JWT refresh token
+        }, status=status.HTTP_201_CREATED)
     
 class RegisterPatientAPI(generics.GenericAPIView):
     serializer_class = PatientSerializer
@@ -39,7 +49,7 @@ class ValidateDoctorLicense(generics.GenericAPIView):
 
         if license:
             if license.license_expiry_date < datetime.today().date():
-                return Response({'data': 'Your License has expired. You need to renew it to complete your registration!'}, status=status.HTTP_403_FORBIDDEN)
+                return Response({'error': 'Your License has expired. You need to renew it to complete your registration!'}, status=status.HTTP_403_FORBIDDEN)
             serializer = MedicalPractitionerSerializer(license, context={'request': request})
             return Response({'data': serializer.data})
         else:
