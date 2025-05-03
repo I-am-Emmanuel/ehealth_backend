@@ -86,6 +86,9 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),               # Authorization: Bearer <token>
 }
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 TEMPLATES = [
     {

@@ -1,15 +1,49 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework import status
-from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer
+from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer, AuthTokenSerializer
 from .models import MedicalPracticioner
 from django.core.exceptions import ObjectDoesNotExist
 from datetime import datetime
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
-
+class LoginAPIView(APIView):
+    permission_classes = (permissions.AllowAny,)
+    
+    def post(self, request):
+        try:
+            serializer = AuthTokenSerializer(
+                data=request.data,
+                context={'request': request}
+            )
+            serializer.is_valid(raise_exception=True)
+            user = serializer.validated_data['user']
+            
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'is_doctor': user.is_med
+                },
+                'access': str(refresh.access_token),
+                'refresh': str(refresh)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Login error: {str(e)}")  # Debugging
+            return Response(
+                {"detail": "Authentication failed. Please check your credentials."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 class RegisterDoctorAPI(generics.GenericAPIView):
     serializer_class = DoctorSerializer
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -36,6 +70,7 @@ class RegisterPatientAPI(generics.GenericAPIView):
     
 class ValidateDoctorLicense(generics.GenericAPIView):
     serializer_class = MedicalPractitionerSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         

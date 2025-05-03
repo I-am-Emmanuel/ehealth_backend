@@ -4,7 +4,7 @@ from .models import Hospital, Availability
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hospital
-        fields = ['name', 'address', ]
+        fields = ['id','name', 'address']
 
 
 class AvailabilitySerializer(serializers.ModelSerializer):

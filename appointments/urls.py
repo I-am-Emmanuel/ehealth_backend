@@ -9,4 +9,6 @@ from .views import *
 urlpatterns = [
     path('availability/', DoctorAvailabilityListCreateView.as_view(), name='availability-list-create'),
     path('availability/<int:pk>/', DoctorAvailabilityDetailView.as_view(), name='availability-detail'),
+    path('hospitals/', HospitalViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('hospitals/<int:pk>/', HospitalViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}))
 ]
