@@ -4,17 +4,36 @@ from rest_framework.validators import UniqueValidator
 from . models import MedicalPracticioner
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 
 User = get_user_model()
 
+
+
+
 class DoctorSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all(), message="This email is already in use.")
+    email = serializers.EmailField(validators=[
+        UniqueValidator(queryset=User.objects.all(), message="This email is already in use.")
     ])
+    profile_image = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ('id','first_name', 'last_name', 'gender','email', 'speciality','hospital', 'license_expiry_date', 'phone', 'username','password','is_med' )
-        extra_kwargs = {'password': {'write_only': True},
-                        'is_med': {'read_only': True}}
+        fields = ('id', 'first_name', 'last_name', 'gender', 'email', 
+                'speciality', 'hospital', 'license_expiry_date', 'phone', 
+                'username', 'password', 'is_med', 'profile_image')
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'is_med': {'read_only': True}
+        }
+
+    def get_profile_image(self, obj):
+        if obj.profile_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile_image.url)
+            return f"{settings.MEDIA_URL}{obj.profile_image}"
+        return None
 
     def create(self, validated_data):
         password = validated_data.pop('password') 
@@ -30,7 +49,7 @@ class PatientSerializer(serializers.ModelSerializer):
     ])
     class Meta:
         model = User
-        fields = ('id','first_name', 'last_name', 'gender', 'address', 'email', 'phone', 'username','password', )
+        fields = ('id','first_name', 'last_name', 'gender', 'address', 'email', 'phone', 'username','password', "health_record" )
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -42,20 +61,26 @@ class MedicalPractitionerSerializer(serializers.ModelSerializer):
         model = MedicalPracticioner
         fields = '__all__'
 
+class ProfileImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['profile_image']
+
 class AuthTokenSerializer(serializers.Serializer):
-    email = serializers.EmailField()  # Use EmailField instead of CharField
+    # email = serializers.EmailField()  # Use EmailField instead of CharField
+    username = serializers.CharField()
     password = serializers.CharField(
         style={'input_type': 'password'},
         trim_whitespace=False
     )
 
     def validate(self, attrs):
-        email = attrs.get('email').lower().strip()
+        username = attrs.get('username').lower().strip()
         password = attrs.get('password')
         
         user = authenticate(
             request=self.context.get('request'),
-            username=email,  # Important: use username kwarg for default backend
+            username=username,  # Important: use username kwarg for default backend
             password=password
         )
         

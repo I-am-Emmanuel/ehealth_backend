@@ -1,13 +1,13 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework import status
-from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer, AuthTokenSerializer
+from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer, AuthTokenSerializer, ProfileImageSerializer
 from .models import MedicalPracticioner
 from django.core.exceptions import ObjectDoesNotExist
 from datetime import datetime
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class LoginAPIView(APIView):
     permission_classes = (permissions.AllowAny,)
@@ -54,19 +54,53 @@ class RegisterDoctorAPI(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         
         return Response({
-            "user": DoctorSerializer(user).data,  # Optional: User details
+            "user": DoctorSerializer(user).data,  
             "access": str(refresh.access_token),  # JWT access token
             "refresh": str(refresh),              # JWT refresh token
         }, status=status.HTTP_201_CREATED)
     
+
+
+
+class CurrentUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        serializer = DoctorSerializer(request.user, context={'request': request})
+        return Response(serializer.data)
+
+class ProfileImageView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def put(self, request):
+        if 'profile_image' not in request.FILES:
+            return Response({'error': 'No image provided'}, status=400)
+        
+        user = request.user
+        user.profile_image = request.FILES['profile_image']
+        user.save()
+        
+        serializer = DoctorSerializer(user, context={'request': request})
+        return Response(serializer.data)
+    
 class RegisterPatientAPI(generics.GenericAPIView):
     serializer_class = PatientSerializer
+    permission_classes = (permissions.AllowAny,)
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response({"user": PatientSerializer(user).data})
+        user = serializer.save()  # Creates the user
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            "user": DoctorSerializer(user).data,  
+            "access": str(refresh.access_token),  # JWT access token
+            "refresh": str(refresh),              # JWT refresh token
+        }, status=status.HTTP_201_CREATED)
     
 class ValidateDoctorLicense(generics.GenericAPIView):
     serializer_class = MedicalPractitionerSerializer
@@ -90,5 +124,4 @@ class ValidateDoctorLicense(generics.GenericAPIView):
         else:
             return Response({'error': 'License not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-
 

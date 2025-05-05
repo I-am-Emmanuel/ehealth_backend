@@ -2,14 +2,16 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+from .validators import file_validators
 
 class User(AbstractUser):
     GENDER_CHOICES = [
         ('Male', 'Male'),
         ('Female', 'Female'),
         ('Other', 'Other'),
+        ("Non-binary", "Non-binary"),
         ('Undefine', 'Prefer not to say')
     ]
     
@@ -19,6 +21,9 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True)
     address = models.TextField(blank=True, null=True)
+    profile_image = models.ImageField(validators=[file_validators],upload_to='profile_images/', null=True, blank=True)
+    health_record = models.FileField(validators=[file_validators, FileExtensionValidator("pdf", 'img', 'jpg')], null=True, blank=True)
+    
     
     def validate_future_date(value):
         if value and value < timezone.now().date():
@@ -46,8 +51,8 @@ class User(AbstractUser):
         ordering = ['last_name', 'first_name']
 
     def __str__(self):
-        if self.specialty:
-            return f"{self.get_full_name()} ({self.specialty})"
+        if self.speciality:
+            return f"{self.get_full_name()} ({self.speciality})"
         return self.get_full_name()
 
 
