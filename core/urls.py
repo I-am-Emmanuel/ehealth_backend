@@ -11,7 +11,15 @@ urlpatterns = [
     path('license_check', ValidateDoctorLicense.as_view()),
     path('login/', LoginAPIView.as_view(), name='login'),
     path('profile-image/', ProfileImageView.as_view(), name='profile-image'),
+    path('profile-health-record/', ProfileHealthRecordView.as_view(), name='health-record'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
+    path('password-reset/',
+         PasswordResetView.as_view(), name='password-reset'),
+    path('password-reset-token-confirm/', ConfirmPasswordResetTokenView.as_view(), name='confirm-password-reset'),
+    path('password-reset-token-activate/', ConfirmPasswordResetActivationToken.as_view(), name='reset-activation'),
+    path('set-new-password/', SetNewPasswordView.as_view(), name='reset-password'),
+    # path('', testing, name='doctors'),
+    path('', view_doctors, name='doctors'),
 ] 
 
 

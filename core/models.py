@@ -4,7 +4,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
-from .validators import file_validators
+from .validators import file_validators, validate_future_date
 
 class User(AbstractUser):
     GENDER_CHOICES = [
@@ -22,19 +22,12 @@ class User(AbstractUser):
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True)
     address = models.TextField(blank=True, null=True)
     profile_image = models.ImageField(validators=[file_validators],upload_to='profile_images/', null=True, blank=True)
-    health_record = models.FileField(validators=[file_validators, FileExtensionValidator("pdf", 'img', 'jpg')], null=True, blank=True)
-    
-    
-    def validate_future_date(value):
-        if value and value < timezone.now().date():
-            raise ValidationError("License expiry date must be in the future")
-    
+    health_record = models.FileField(validators=[file_validators, FileExtensionValidator("pdf")], null=True, blank=True, upload_to='health_records/')
     license_expiry_date = models.DateField(
         null=True,
         blank=True,
         validators=[validate_future_date]
     )
-    
     speciality = models.CharField(max_length=50, null=True, blank=True)
     is_med = models.BooleanField(default=False)
     hospital = models.ForeignKey(
@@ -64,3 +57,17 @@ class MedicalPracticioner(models.Model):
     gender = models.CharField(max_length=20)
     license_expiry_date = models.DateField(null=False)
     speciality = models.CharField(max_length=50, null=False)
+
+class PasswordResetKey(models.Model):
+    key = models.CharField(max_length=10, blank=True, null=True)
+    expiry_date = models.DateTimeField(blank=True, null=True)
+    user = models.ForeignKey(
+        User,
+        related_name='reset_keys',
+        on_delete=models.CASCADE)
+    matched = models.BooleanField(default=False)
+    token_activation_code = models.CharField(
+        max_length=50, null=True, blank=True)
+
+    def __str__(self):
+        return self.user.username if self.user else self.matched

@@ -115,6 +115,7 @@ WSGI_APPLICATION = 'ehealth_backend.wsgi.application'
 
 DATABASES = {
     'default': {
+        # 'ENGINE': 'django.contrib.gis.db.backends.mysql',
         'ENGINE': 'django.db.backends.mysql',
         'NAME': os.getenv("db_name"),
         'HOST': os.getenv("db_host"),
@@ -168,6 +169,11 @@ STATIC_URL = 'static/'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+FRONTEND_URL = 'http://127.0.0.1:8000/'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+EMAIL_PORT = os.getenv('EMAIL_PORT')
 
 
 
