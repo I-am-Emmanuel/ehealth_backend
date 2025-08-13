@@ -25,7 +25,7 @@ class DoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'first_name', 'last_name', 'gender', 'email', 
-                'speciality', 'hospital', 'license_expiry_date', 'phone', 
+                'speciality', 'hospital', 'license_expiry_date', 
                 'username', 'password', 'is_med', 'profile_image')
         extra_kwargs = {
             'password': {'write_only': True},

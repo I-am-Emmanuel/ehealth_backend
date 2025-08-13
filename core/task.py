@@ -72,6 +72,34 @@ def send_password_was_reset_email(to_email, email_port, sender_email, sender_pas
     except Exception as e:
         print(f"Error: {e}")
         return False
+    
+def send_email(to_email, email_port, sender_email, sender_password, title, body):
+    
+    
+    if not all([to_email, sender_email, body, title, sender_password]):
+        print("Error: Missing required email parameters")
+        return False
+    
+    mail_body = render_to_string('emails/anymail.html', {'email': to_email, 'title': title, 'content': body})
+    
+    msg = MIMEMultipart('alternative')
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = title
+
+    msg.attach(MIMEText(mail_body, 'html'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', email_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        text = msg.as_string()
+        server.sendmail(sender_email, to_email, text)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
 
 
 

@@ -129,6 +129,22 @@ DATABASES = {
     }
 }
 
+# Development setting
+GEOCODING_USER_AGENT = "MediConnectDev/1.0 (olaifaemmanueloluwatobiloba@gmail.com)"
+
+# Production setting
+# GEOCODING_USER_AGENT = "MediConnect/1.0 (support@mediconnect-ng.com)"
+
+
+# Geocoding optimization for development
+GEOCODING_TIMEOUT = 15  # More lenient timeout for debug
+GEOCODING_CACHE_TTL = 60 * 60 * 24 * 30  # 30-day cache
+GEOCODING_MAX_RETRIES = 3
+
+# Fake coordinates for Nigeria when offline
+FAKE_GEOCODING = False  # Set False in production
+DEFAULT_LATITUDE = 9.0820   # Lagos coordinates
+DEFAULT_LONGITUDE = 8.6753
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -181,3 +197,6 @@ EMAIL_PORT = os.getenv('EMAIL_PORT')
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_TIMEZONE = 'Africa/Lagos'

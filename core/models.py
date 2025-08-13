@@ -4,7 +4,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
-from .validators import file_validators, validate_future_date
+from .validators import file_validators, validate_future_date, validate_phone_number
 
 class User(AbstractUser):
     GENDER_CHOICES = [
@@ -17,7 +17,7 @@ class User(AbstractUser):
     
     first_name = models.CharField(max_length=50, blank=False)
     last_name = models.CharField(max_length=50, blank=False)
-    phone = models.CharField(max_length=20, blank=True, null=True)
+    phone = models.CharField(max_length=11, blank=True, null=True, validators=[validate_phone_number], unique=True)
     email = models.EmailField(unique=True)
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True)
     address = models.TextField(blank=True, null=True)

@@ -1,6 +1,8 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.mixins import CreateModelMixin, UpdateModelMixin, ListModelMixin
+from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework import status
 from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer, AuthTokenSerializer, ProfileImageSerializer, GeneralUserSerializer, UpdatePasswordSerializer
 from .models import MedicalPracticioner, PasswordResetKey
@@ -69,9 +71,124 @@ class RegisterDoctorAPI(generics.GenericAPIView):
             "access": str(refresh.access_token),  # JWT access token
             "refresh": str(refresh),              # JWT refresh token
         }, status=status.HTTP_201_CREATED)
+
+class PatientViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.filter(is_med=False)
+    serializer_class = PatientSerializer
+    permission_classes = [permissions.AllowAny]  # Adjust permissions as needed
+
+    @action(detail=False, methods=['get'])
+    def multiple(self, request):
+        ids = request.query_params.get('ids', '')
+        if not ids:
+            return Response(
+                {"error": "No doctor IDs provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            patient_ids = [int(id) for id in ids.split(',')]
+            patients = self.queryset.filter(id__in=patient_ids)
+            serializer = self.get_serializer(patients, many=True)
+            return Response(serializer.data)
+        except ValueError:
+            return Response(
+                {"error": "Invalid patient IDs format"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+    def retrieve(self, request, pk=None):
+        patient = get_object_or_404(self.queryset, pk=pk)
+        serializer = self.get_serializer(patient)
+        return Response(serializer.data)
     
 
 
+class DoctorViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.filter(is_med=True)
+    serializer_class = DoctorSerializer
+    permission_classes = [permissions.AllowAny]  # Adjust permissions as needed
+    
+    # Custom action to get multiple doctors by IDs
+    @action(detail=False, methods=['get'])
+    def multiple(self, request):
+        ids = request.query_params.get('ids', '')
+        if not ids:
+            return Response(
+                {"error": "No doctor IDs provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            doctor_ids = [int(id) for id in ids.split(',')]
+            doctors = self.queryset.filter(id__in=doctor_ids)
+            serializer = self.get_serializer(doctors, many=True)
+            return Response(serializer.data)
+        except ValueError:
+            return Response(
+                {"error": "Invalid doctor IDs format"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    # Override default list to add filtering capabilities
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Add any additional filtering you need here
+        specialization = request.query_params.get('speciality')
+        if specialization:
+            queryset = queryset.filter(speciality=specialization)
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    # Override retrieve to add custom response if needed
+    def retrieve(self, request, pk=None):
+        doctor = get_object_or_404(self.queryset, pk=pk)
+        serializer = self.get_serializer(doctor)
+        return Response(serializer.data)
+    
+    # Example of custom action for doctor availability
+    @action(detail=True, methods=['get'])
+    def availability(self, request, pk=None):
+        doctor = self.get_object()
+        # Add your availability logic here
+        return Response({
+            "doctor": doctor.id,
+            "availability": "Add your availability data here"
+        })
+
+# class DoctorListView(generics.ListAPIView):
+#     queryset = User.objects.filter(is_med=True)
+#     serializer_class = DoctorSerializer
+#     # permission_classes = [permissions.IsAuthenticated]
+#     permission_classes = [permissions.AllowAny]
+
+#     def get(self, request, *args, **kwargs):
+#         queryset = self.get_queryset()
+#         serializer = self.get_serializer(queryset, many=True)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+# class DoctorDetailView(generics.RetrieveAPIView):
+#     queryset = User.objects.filter(is_med=True)
+#     serializer_class = DoctorSerializer
+#     # permission_classes = [permissions.IsAuthenticated]
+#     permission_classes = [permissions.AllowAny]
+#     lookup_field = 'pk'
+
+#     def get(self, request, *args, **kwargs):
+#         try:
+#             instance = self.get_object()
+#             serializer = self.get_serializer(instance)
+#             return Response(serializer.data, status=status.HTTP_200_OK)
+#         except ObjectDoesNotExist:
+#             return Response({"detail": "Doctor not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class CurrentUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -280,6 +397,7 @@ class SetNewPasswordView(APIView):
                     {'message': 'Password Reset successful!'}, status=status.HTTP_200_OK)
         return Response({'error': 'Request failed!. Invalid Data'},
                         status=status.HTTP_400_BAD_REQUEST)
+
 
 # practise task
 

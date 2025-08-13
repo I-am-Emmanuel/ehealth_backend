@@ -10,3 +10,9 @@ def file_validators(file):
 def validate_future_date(value):
         if value and value < timezone.now().date():
             raise ValidationError("License expiry date must be in the future")
+        
+def validate_phone_number(value):
+    if not value.isdigit():
+        raise ValidationError(f'Your number should not include any character')
+    if len(value) < 11:
+        raise ValidationError(f'Phone number length should be 11')
