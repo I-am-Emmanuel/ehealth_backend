@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework import status
 from .serializer import DoctorSerializer, PatientSerializer,MedicalPractitionerSerializer, AuthTokenSerializer, ProfileImageSerializer, GeneralUserSerializer, UpdatePasswordSerializer
 from .models import MedicalPracticioner, PasswordResetKey
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from datetime import datetime
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
@@ -17,6 +17,8 @@ from django.conf import settings
 from .utils import make_password_token_and_key
 from .task import send_password_token, send_password_was_reset_email
 from django.utils import timezone
+import cloudinary.uploader
+from .validators import validate_image, file_validators
 # from .utils import password_url_email, password_token
 
 User = get_user_model()
@@ -68,8 +70,8 @@ class RegisterDoctorAPI(generics.GenericAPIView):
         
         return Response({
             "user": DoctorSerializer(user).data,  
-            "access": str(refresh.access_token),  # JWT access token
-            "refresh": str(refresh),              # JWT refresh token
+            "access": str(refresh.access_token),  
+            "refresh": str(refresh),              
         }, status=status.HTTP_201_CREATED)
 
 class PatientViewSet(viewsets.ModelViewSet):
@@ -85,7 +87,6 @@ class PatientViewSet(viewsets.ModelViewSet):
                 {"error": "No doctor IDs provided"}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         try:
             patient_ids = [int(id) for id in ids.split(',')]
             patients = self.queryset.filter(id__in=patient_ids)
@@ -107,7 +108,8 @@ class PatientViewSet(viewsets.ModelViewSet):
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_med=True)
     serializer_class = DoctorSerializer
-    permission_classes = [permissions.AllowAny]  # Adjust permissions as needed
+    permission_classes = [permissions.IsAuthenticated]  # Adjust permissions as needed
+    # permission_classes = [permissions.AllowAny]  # Adjust permissions as needed
     
     # Custom action to get multiple doctors by IDs
     @action(detail=False, methods=['get'])
@@ -118,7 +120,6 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 {"error": "No doctor IDs provided"}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         try:
             doctor_ids = [int(id) for id in ids.split(',')]
             doctors = self.queryset.filter(id__in=doctor_ids)
@@ -157,49 +158,45 @@ class DoctorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def availability(self, request, pk=None):
         doctor = self.get_object()
-        # Add your availability logic here
         return Response({
             "doctor": doctor.id,
             "availability": "Add your availability data here"
         })
 
-# class DoctorListView(generics.ListAPIView):
-#     queryset = User.objects.filter(is_med=True)
-#     serializer_class = DoctorSerializer
-#     # permission_classes = [permissions.IsAuthenticated]
-#     permission_classes = [permissions.AllowAny]
-
-#     def get(self, request, *args, **kwargs):
-#         queryset = self.get_queryset()
-#         serializer = self.get_serializer(queryset, many=True)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-
-# class DoctorDetailView(generics.RetrieveAPIView):
-#     queryset = User.objects.filter(is_med=True)
-#     serializer_class = DoctorSerializer
-#     # permission_classes = [permissions.IsAuthenticated]
-#     permission_classes = [permissions.AllowAny]
-#     lookup_field = 'pk'
-
-#     def get(self, request, *args, **kwargs):
-#         try:
-#             instance = self.get_object()
-#             serializer = self.get_serializer(instance)
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         except ObjectDoesNotExist:
-#             return Response({"detail": "Doctor not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class CurrentUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        user = self.request.user
+        user = request.user
         if user.is_med:
-            serializer = DoctorSerializer(request.user, context={'request': request})
+            serializer = DoctorSerializer(user, context={'request': request})
             return Response(serializer.data)
-        serializer = PatientSerializer(request.user, context={'request': request})
-        return Response(serializer.data)
+        elif not user.is_med:
+            serializer = PatientSerializer(user, context={'request': request})
+            return Response(serializer.data)
+        return Response({'error': 'Invalid user type.'}, status=status.HTTP_403_FORBIDDEN)
+
+    def put(self, request):
+        user = request.user
+        if user.is_med:
+            serializer = DoctorSerializer(user, data=request.data, partial=True, context={'request': request})
+        elif not user.is_med:
+            serializer = PatientSerializer(user, data=request.data, partial=True, context={'request': request})
+        else:
+            return Response({'error': 'Invalid user type.'}, status=status.HTTP_403_FORBIDDEN)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        return self.put(request)
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ProfileImageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -209,31 +206,72 @@ class ProfileImageView(APIView):
         if 'profile_image' not in request.FILES:
             return Response({'error': 'No image provided'}, status=400)
         
+        try:
+            validate_image(request.FILES['profile_image'])  # Validate image type and size
+        except ValidationError as e:
+            print(f"Image validation error: {str(e)}")  # Debugging
+            return Response({'error': str(e)}, status=400)
         user = request.user
-        user.profile_image = request.FILES['profile_image']
-        user.save()
+        try:
+            # Upload to Cloudinary with specific folder
+            result = cloudinary.uploader.upload(
+                request.FILES['profile_image'],
+                folder="Mediconnect/UserProfileImage/",
+                resource_type="image",
+                overwrite=True,
+                invalidate=True,
+                transformation=[
+                    {'width': 500, 'height': 500, 'crop': 'limit'},
+                    {'quality': 'auto:best'}
+                ]
+            )
+            
+            # Delete old image if exists
+            if user.profile_image:
+                public_id = user.profile_image.public_id
+                cloudinary.uploader.destroy(public_id)
+            
+            user.profile_image = result['secure_url']
+            user.save()
+            
+            serializer_class = DoctorSerializer if user.is_med else PatientSerializer
+            serializer = serializer_class(user, context={'request': request})
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
-        # Use DoctorSerializer if user is a doctor, otherwise use PatientSerializer
-        serializer_class = DoctorSerializer if user.is_med else PatientSerializer
-        serializer = serializer_class(user, context={'request': request})
-        return Response(serializer.data)
-    
 class ProfileHealthRecordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def put(self, request):
-        if 'health_record' not in request.FILES:
-            return Response({'error': 'No health record file provided'}, status=400)
-        
         user = request.user
-        user.health_record = request.FILES['health_record']
-        user.save()
-
-        serializer_class = PatientSerializer
-        serializer = serializer_class(user, context={'request': request})
-        return Response(serializer.data)
-
+        if user.is_med:
+            return Response({'error': 'Doctors cannot upload health records.'}, status=status.HTTP_403_FORBIDDEN)
+        if 'health_record' not in request.FILES:
+            return Response({'error': 'No file provided'}, status=400)
+        try:
+            file_validators(request.FILES['health_record'])
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=400)
+        try:
+            result = cloudinary.uploader.upload(
+                request.FILES['health_record'],
+                folder="Mediconnect/UsersHealthRecord/",
+                resource_type="raw",
+                overwrite=True,
+                invalidate=True
+            )
+            if user.health_record:
+                public_id = user.health_record.public_id
+                cloudinary.uploader.destroy(public_id)
+            user.health_record = result['secure_url']
+            user.save()
+            serializer = PatientSerializer(user, context={'request': request})
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
     
 class RegisterPatientAPI(generics.GenericAPIView):
     serializer_class = PatientSerializer
@@ -248,7 +286,7 @@ class RegisterPatientAPI(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         
         return Response({
-            "user": DoctorSerializer(user).data,  
+            "user": PatientSerializer(user).data,  
             "access": str(refresh.access_token),  # JWT access token
             "refresh": str(refresh),              # JWT refresh token
         }, status=status.HTTP_201_CREATED)
@@ -316,7 +354,7 @@ class PasswordResetView(APIView):
 
         if not email_sent:
             return Response({'error': 'Failed to send email'}, 
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                          status=status.HTTP_501_NOT_IMPLEMENTED)
 
         return Response({'message': 'Password reset instructions sent to your email'}, 
                       status=status.HTTP_200_OK)
@@ -328,7 +366,7 @@ class ConfirmPasswordResetActivationToken(APIView):
         code = request.data.get('code', None)
         activation_code_qs = PasswordResetKey.objects.filter(
             token_activation_code=code, matched=False)
-        print('hi')
+        # print('hi')
         if activation_code_qs.exists():
             activation_code = activation_code_qs.first()
             if activation_code.expiry_date <= timezone.now() + timezone.timedelta(minutes=15):
@@ -355,7 +393,7 @@ class ConfirmPasswordResetTokenView(APIView):
                     key.matched = True
                     key.save()
                     return Response(
-                        {'message': 'This password token is expired!'}, status=status.HTTP_400_BAD_REQUEST)
+                        {'message': 'This password token has expired!'}, status=status.HTTP_400_BAD_REQUEST)
                 return Response({'message': 'Successful!'}, status=status.HTTP_200_OK)
                 # else:
             else:
@@ -397,6 +435,8 @@ class SetNewPasswordView(APIView):
                     {'message': 'Password Reset successful!'}, status=status.HTTP_200_OK)
         return Response({'error': 'Request failed!. Invalid Data'},
                         status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 # practise task

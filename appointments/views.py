@@ -4,6 +4,7 @@ from .models import Availability, Hospital, Appointment
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework import status
 from rest_framework import viewsets
 from .serializers import HospitalSerializer,AvailabilitySerializer, HospitalDoctorsListSerializer, AppointmentSerializer
@@ -17,17 +18,18 @@ from datetime import time, datetime
 from rest_framework.decorators import action
 from .tasks import check_payment_expiry
 from .utils import send_payment_reminder_email, send_doctor_confirmation_email, \
-    send_payment_expired_email, send_payment_success_email, model_weekday, send_approval_email
+    send_payment_expired_email, send_payment_success_email, \
+          model_weekday, send_approval_email, send_doctor_cancellation_email
 from .tasks import check_payment_expiry
 import requests
 from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .models import Appointment
+from datetime import datetime
 
 
 Users = get_user_model()
+
+
+
 
 class DoctorAvailabilityListCreateView(generics.ListCreateAPIView):
     serializer_class = AvailabilitySerializer
@@ -48,13 +50,38 @@ class DoctorAvailabilityDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Availability.objects.filter(doctor=self.request.user)
+    
+    def perform_destroy(self, instance):
+        if instance.day_of_week == datetime.now().weekday():
+            # If deleting today's availability, check for future appointments today
+            tz = pytz.timezone('Africa/Lagos')
+            now = timezone.now().astimezone(tz)
+            future_appointments = Appointment.objects.filter(
+                doctor=self.request.user,
+                date=now.date(),
+                time__gt=now.time(),
+                status__in=['pending', 'approved', 'confirmed'],
+                is_active=True
+            )
+            if future_appointments.exists():
+                raise PermissionDenied("Cannot delete today's availability with future appointments scheduled.")
+        instance.delete()
+    
+        
+            
+# from rest_framework.decorators import api_view, permission_classes
 
+# @api_view(['GET'])
+# @permission_classes([permissions.IsAuthenticated])
+# def test_availability_view(request):
+#     availabilities = Availability.objects.filter(doctor=request.user)
+#     serializer = AvailabilitySerializer(availabilities, many=True)
+#     return Response(serializer.data)
 
 class HospitalViewSet(ModelViewSet):
     serializer_class = HospitalSerializer
     queryset = Hospital.objects.all()
     # permission_classes = [permissions.AllowAny]
-
 
 
 class NearbyHospitalsView(APIView):
@@ -97,14 +124,38 @@ class NearbyHospitalsView(APIView):
             "results": serializer.data
         })
 
-class HospitalDoctorsListView(APIView):
+class FindHospitalThroughSpeciality(APIView):
+    '''
+    API to find hospitals through doctor's speciality
+    '''
+
     permission_classes = [permissions.AllowAny]
+    todays_date = datetime.now().date()
+    
+    def get(self, requests):
+        speciality = requests.query_params.get('speciality', None)
+        if speciality:
+            search_speciality = Users.objects.filter(is_med=True, speciality__icontains=speciality, license_expiry_date__gte=self.todays_date).values('hospital').distinct()
+            print(search_speciality)
+            hospitals = Hospital.objects.filter(id__in=[item['hospital'] for item in search_speciality if item['hospital'] is not None]) 
+            serializer = HospitalSerializer(hospitals, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({'error': 'Request failed!. Invalid Data'},
+                        status=status.HTTP_400_BAD_REQUEST)   
+
+
+class HospitalDoctorsListView(APIView):
     """API to list doctors in a specific hospital"""
+    permission_classes = [permissions.AllowAny]
+    todays_date = datetime.now().date()
 
     def get(self, request, hospital_id):  # Get hospital_id from URL path
         try:
+            if request.user.is_med:
+                return Response({"error": "Medical professionals cannot access this endpoint with their medical accounts."}, 
+                              status=status.HTTP_403_FORBIDDEN)
             hospital = Hospital.objects.get(id=hospital_id)
-            doctors = Users.objects.filter(is_med=True, hospital_id=hospital)
+            doctors = Users.objects.filter(is_med=True, hospital_id=hospital, license_expiry_date__gte=self.todays_date) 
         except Hospital.DoesNotExist:
             return Response({"error": "Hospital not found"}, status=status.HTTP_404_NOT_FOUND)
         serializer = HospitalDoctorsListSerializer(doctors, many=True)
@@ -130,7 +181,6 @@ class DoctorAppointmentBookingView(APIView):
         serializer = AvailabilitySerializer(availability, many=True)
         
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 
 class DoctorAvailabilityView(APIView):
@@ -263,143 +313,7 @@ class DoctorTimeSlotView(APIView):
             "doctor_id": doctor_id,
             "available_slots": available_slots
         })
-# class BookAppointmentView(APIView):
-#     permission_classes = [permissions.AllowAny]
 
-#     def post(self, request):
-#         data = request.data
-#         required_fields = ['doctor', 'date', 'time']
-        
-#         # Validate required fields
-#         if not all(field in data for field in required_fields):
-#             return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Get Nigeria timezone
-#         tz = pytz.timezone('Africa/Lagos')
-#         now = timezone.now().astimezone(tz)
-#         today = now.date()
-        
-#         try:
-#             # Parse and validate appointment date/time
-#             app_date = date.fromisoformat(data['date'])
-#             app_time = time.fromisoformat(data['time'])
-#             app_datetime = datetime.combine(app_date, app_time, tzinfo=tz)
-            
-#             # Check if appointment is in the past
-#             if app_datetime <= now:
-#                 return Response({"error": "Cannot book appointment in the past"}, 
-#                               status=status.HTTP_400_BAD_REQUEST)
-                
-#         except ValueError:
-#             return Response({"error": "Invalid date or time format"}, 
-#                           status=status.HTTP_400_BAD_REQUEST)
-        
-#         existing_slot_appointments = Appointment.objects.filter(
-#             doctor_id=data['doctor'],
-#             date=app_date,
-#             time=app_time,
-#         ).exclude(
-#             Q(status='cancelled', cancelled_by='patient')  # Allow booking in patient-cancelled slots
-#         )
-        
-#         if existing_slot_appointments.exists():
-#             return Response({
-#                 "error": "This time slot is no longer available. Please choose another time."
-#             }, status=status.HTTP_400_BAD_REQUEST)
-
-        
-#         # Check for existing appointments at this time slot FOR ANY USER
-#         existing_slot_appointments = Appointment.objects.filter(
-#             doctor_id=data['doctor'],
-#             date=app_date,
-#             time=app_time,
-#         ).exclude(status='cancelled')
-        
-#         if existing_slot_appointments.exists():
-#             return Response({
-#                 "error": "This time slot is no longer available. Please choose another time."
-#             }, status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Check if doctor exists and is available
-#         try:
-#             doctor = Users.objects.get(id=data['doctor'], is_med=True)
-            
-#             # Convert Python weekday (Monday=0) to model's weekday (Monday=1)
-#             day_of_week_model = model_weekday(app_date.weekday())
-            
-#             # Verify doctor availability
-#             same_day_availabilities = Availability.objects.filter(
-#                 doctor=doctor,
-#                 day_of_week=day_of_week_model,
-#             )
-            
-#             # Check previous day for night shifts
-#             prev_day_model = (day_of_week_model - 1) % 7
-#             prev_day_availabilities = Availability.objects.filter(
-#                 doctor=doctor,
-#                 day_of_week=prev_day_model,
-#             )
-            
-#             available = False
-            
-#             # Check same day availability
-#             for avail in same_day_availabilities:
-#                 # Normal shift (same day)
-#                 if avail.start_time <= avail.end_time:
-#                     if avail.start_time <= app_time <= avail.end_time:
-#                         available = True
-#                         break
-#                 # Night shift (spans midnight)
-#                 else:
-#                     if app_time >= avail.start_time:
-#                         available = True
-#                         break
-            
-#             # Check previous day for continuing night shifts
-#             if not available:
-#                 for avail in prev_day_availabilities:
-#                     if avail.start_time > avail.end_time:  # Night shift
-#                         if app_time <= avail.end_time:
-#                             available = True
-#                             break
-            
-#             if not available:
-#                 # Add debug information to response
-#                 debug_info = {
-#                     "requested_time": app_time.strftime('%H:%M'),
-#                     "requested_day_model": day_of_week_model,
-#                     "same_day_availabilities": [
-#                         f"{avail.start_time}-{avail.end_time}" 
-#                         for avail in same_day_availabilities
-#                     ],
-#                     "prev_day_availabilities": [
-#                         f"{avail.start_time}-{avail.end_time}" 
-#                         for avail in prev_day_availabilities
-#                     ]
-#                 }
-#                 return Response({
-#                     "error": "Doctor not available at this time",
-#                     "debug": debug_info
-#                 }, status=status.HTTP_400_BAD_REQUEST)
-                
-#         except Users.DoesNotExist:
-#             return Response({"error": "Medical professional not found"}, 
-#                           status=status.HTTP_404_NOT_FOUND)
-        
-#         # Create the appointment
-#         appointment = Appointment.objects.create(
-#             user=request.user,
-#             doctor=doctor,
-#             date=app_date,
-#             time=app_time,
-#             day_of_week=app_date.weekday(),  # Store Python weekday (Monday=0)
-#             status='pending'
-#         )
-        
-#         return Response({
-#             "message": "Appointment booked successfully!",
-#             "appointment_id": appointment.id
-#         }, status=status.HTTP_201_CREATED)
 
 class BookAppointmentView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -431,6 +345,10 @@ class BookAppointmentView(APIView):
         except ValueError:
             return Response({"error": "Invalid date or time format"}, 
                           status=status.HTTP_400_BAD_REQUEST)
+        
+        if request.user.is_med:
+            return Response({"error": "Medical professionals cannot book appointments, with their medical accounts"}, 
+                          status=status.HTTP_403_FORBIDDEN)
         
         # Check for existing active appointments with same doctor FOR THIS USER
         existing_user_appointments = Appointment.objects.filter(
@@ -605,6 +523,7 @@ class DoctorAppointmentViewSet(viewsets.ModelViewSet):
             )
             
         appointment.status = 'completed'
+        appointment.completion_date = datetime.now(pytz.timezone('Africa/Lagos'))
         appointment.save()
         
         return Response(
@@ -646,7 +565,10 @@ class DoctorAppointmentViewSet(viewsets.ModelViewSet):
         # Mark as cancelled by doctor
         appointment.status = 'cancelled'
         appointment.cancelled_by = 'doctor'
+        appointment.cancellation_reason = request.data.get('reason', 'No reason provided')
         appointment.save()
+
+        send_doctor_cancellation_email(appointment)
         
         return Response(
             {"detail": "Appointment cancelled and time slot permanently blocked."},
@@ -677,9 +599,10 @@ class PatientAppointmentView(viewsets.ModelViewSet):
         
         for appointment in past_appointments:
             appointment.status = 'cancelled'
+            appointment.cancellation_reason = "Automatically cancelled due to being past the scheduled time."
             appointment.save()
         
-        print(f'My appointments: {queryset}')
+        # print(f'My appointments: {queryset}')
         return queryset
     
     @action(detail=True, methods=['post'])
@@ -715,7 +638,7 @@ class PatientAppointmentView(viewsets.ModelViewSet):
         # Mark as inactive instead of changing status
         appointment.is_active = False
         appointment.status = 'cancelled'
-        appointment.cancellation_reason = request.data.get('reason', '')
+        appointment.cancellation_reason = request.data.get('reason', 'No reason provided')
         appointment.save()
         
         return Response(
@@ -757,17 +680,126 @@ class TodaysConfirmedAppointmentsView(APIView):
         # print(f"Today's confirmed appointments count: {appointment_count}")
         return Response({'count': appointment_count}, status=status.HTTP_200_OK)
 
-class DoctorCompletedAppointmentsView(APIView):
+class EachWeeklyAppointmentsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    """API to get completed appointments for the authenticated doctor
+    """API to get this week's appointments for the authenticated doctor
     """
     def get(self, request):
+        try:
+            tz = pytz.timezone('Africa/Lagos')
+            today = timezone.now().astimezone(tz).date()
+            from .utils import _calculate_this_week_date_range
+            start_of_week, end_of_week = _calculate_this_week_date_range(today)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            # Get this week's appointments for the authenticated doctor
+            appointment = Appointment.objects.filter(
+                doctor=request.user,
+                date__range=(start_of_week, end_of_week),)
+
+        except Appointment.DoesNotExist:
+            return Response({"message": "No appointments for this week"}, status=status.HTTP_404_NOT_FOUND)
+            
+        confirmed_count = appointment.filter(status='confirmed').count()
+        completed_count = appointment.filter(status='completed').count()
+        pending_count = appointment.filter(status='pending').count()
+        approved_count = appointment.filter(status='approved').count()
+        cancelled_count = appointment.filter(status='cancelled').count()
+        return Response({
+            'total_count' : appointment.count(),
+            'confirmed_appointments': confirmed_count,
+            'completed_appointments': completed_count,
+            'pending_appointments': pending_count,
+            'approved_appointments': approved_count,
+            'cancelled_appointments': cancelled_count,
+        }, status=status.HTTP_200_OK)  
+
+
+class EachMonthlyAppointmentsView(APIView):
+    '''
+    API to get this month's appointments for the authenticated doctor
+    '''
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        try:
+            tz = pytz.timezone('Africa/Lagos')
+            today = timezone.now().astimezone(tz).date()
+            from .utils import _calculate_this_month_date_range
+            start_of_month, end_of_month = _calculate_this_month_date_range(today)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            # Get this month's appointments for the authenticated doctor
+            appointment = Appointment.objects.filter(
+                doctor=request.user,
+                date__range=(start_of_month, end_of_month),)
+
+        except Appointment.DoesNotExist:
+            return Response({"message": "No appointments for this month"}, status=status.HTTP_404_NOT_FOUND)
+            
+        confirmed_count = appointment.filter(status='confirmed').count()
+        completed_count = appointment.filter(status='completed').count()
+        pending_count = appointment.filter(status='pending').count()
+        approved_count = appointment.filter(status='approved').count()
+        cancelled_count = appointment.filter(status='cancelled').count()
+        return Response({
+            'total_count' : appointment.count(),
+            'confirmed_appointments': confirmed_count,
+            'completed_appointments': completed_count,
+            'pending_appointments': pending_count,
+            'approved_appointments': approved_count,
+            'cancelled_appointments': cancelled_count,
+        }, status=status.HTTP_200_OK)
+
+class DoctorsCompletedAppointmentsView(APIView):
+    """API to get all completed appointments for a specific doctor with search and date range filtering"""
+    # permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, doctor_id):
+        try:
+            doctor = Users.objects.get(id=doctor_id, is_med=True)
+        except Users.DoesNotExist:
+            return Response({"error": "Doctor not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get query parameters
+        search_query = request.query_params.get('search', '')
+        start_date = request.query_params.get('start_date', None)
+        end_date = request.query_params.get('end_date', None)
+        
         appointments = Appointment.objects.filter(
-            doctor=request.user,
+            doctor=doctor,
             status='completed'
-        ).order_by('-date', 'time')
+        ).select_related('user').order_by('-date', 'time')
+        
+        # Apply search filter if provided
+        if search_query:
+            appointments = appointments.filter(
+                Q(user__first_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query) |
+                Q(user__email__icontains=search_query)
+            )
+        
+        # Apply date range filter if provided
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                appointments = appointments.filter(date__gte=start_date)
+            except ValueError:
+                pass
+        
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                appointments = appointments.filter(date__lte=end_date)
+            except ValueError:
+                pass
+        
         if not appointments.exists():
-            return Response({"message": "No completed appointments found"}, status=status.HTTP_200_OK)
+            return Response({"message": "No completed appointments found."}, 
+                          status=status.HTTP_200_OK)
+        
         serializer = AppointmentSerializer(appointments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -778,239 +810,140 @@ class DoctorCompletedAppointmentsView(APIView):
 
 
 
+# class BookAppointmentView(APIView):
+#     permission_classes = [permissions.AllowAny]
 
-
-
-
-
-
-
-
-
-# class DoctorConfirmAppointmentView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def post(self, request, appointment_id):
-#         try:
-#             appointment = Appointment.objects.get(
-#                 id=appointment_id,
-#                 doctor=request.user,
-#                 status='pending'
-#             )
-#         except Appointment.DoesNotExist:
-#             return Response({"error": "Appointment not found or already confirmed"}, 
-#                            status=status.HTTP_404_NOT_FOUND)
+#     def post(self, request):
+#         data = request.data
+#         required_fields = ['doctor', 'date', 'time']
         
-#         # Set confirmation and payment deadline
+#         # Validate required fields
+#         if not all(field in data for field in required_fields):
+#             return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         # Get Nigeria timezone
 #         tz = pytz.timezone('Africa/Lagos')
 #         now = timezone.now().astimezone(tz)
-#         payment_deadline = now + timedelta(hours=1)
+#         today = now.date()
         
-#         appointment.status = 'confirmed'
-#         appointment.confirmation_sent_at = now
-#         appointment.payment_deadline = payment_deadline
-#         appointment.save()
+#         try:
+#             # Parse and validate appointment date/time
+#             app_date = date.fromisoformat(data['date'])
+#             app_time = time.fromisoformat(data['time'])
+#             app_datetime = datetime.combine(app_date, app_time, tzinfo=tz)
+            
+#             # Check if appointment is in the past
+#             if app_datetime <= now:
+#                 return Response({"error": "Cannot book appointment in the past"}, 
+#                               status=status.HTTP_400_BAD_REQUEST)
+                
+#         except ValueError:
+#             return Response({"error": "Invalid date or time format"}, 
+#                           status=status.HTTP_400_BAD_REQUEST)
         
-#         # Send email notification to patient
-#         send_payment_reminder_email(appointment)
+#         existing_slot_appointments = Appointment.objects.filter(
+#             doctor_id=data['doctor'],
+#             date=app_date,
+#             time=app_time,
+#         ).exclude(
+#             Q(status='cancelled', cancelled_by='patient')  # Allow booking in patient-cancelled slots
+#         )
         
-#         # Schedule payment expiration check
-#         check_payment_expiry.apply_async((appointment.id,), eta=payment_deadline)
+#         if existing_slot_appointments.exists():
+#             return Response({
+#                 "error": "This time slot is no longer available. Please choose another time."
+#             }, status=status.HTTP_400_BAD_REQUEST)
+
+        
+#         # Check for existing appointments at this time slot FOR ANY USER
+#         existing_slot_appointments = Appointment.objects.filter(
+#             doctor_id=data['doctor'],
+#             date=app_date,
+#             time=app_time,
+#         ).exclude(status='cancelled')
+        
+#         if existing_slot_appointments.exists():
+#             return Response({
+#                 "error": "This time slot is no longer available. Please choose another time."
+#             }, status=status.HTTP_400_BAD_REQUEST)
+        
+#         # Check if doctor exists and is available
+#         try:
+#             doctor = Users.objects.get(id=data['doctor'], is_med=True)
+            
+#             # Convert Python weekday (Monday=0) to model's weekday (Monday=1)
+#             day_of_week_model = model_weekday(app_date.weekday())
+            
+#             # Verify doctor availability
+#             same_day_availabilities = Availability.objects.filter(
+#                 doctor=doctor,
+#                 day_of_week=day_of_week_model,
+#             )
+            
+#             # Check previous day for night shifts
+#             prev_day_model = (day_of_week_model - 1) % 7
+#             prev_day_availabilities = Availability.objects.filter(
+#                 doctor=doctor,
+#                 day_of_week=prev_day_model,
+#             )
+            
+#             available = False
+            
+#             # Check same day availability
+#             for avail in same_day_availabilities:
+#                 # Normal shift (same day)
+#                 if avail.start_time <= avail.end_time:
+#                     if avail.start_time <= app_time <= avail.end_time:
+#                         available = True
+#                         break
+#                 # Night shift (spans midnight)
+#                 else:
+#                     if app_time >= avail.start_time:
+#                         available = True
+#                         break
+            
+#             # Check previous day for continuing night shifts
+#             if not available:
+#                 for avail in prev_day_availabilities:
+#                     if avail.start_time > avail.end_time:  # Night shift
+#                         if app_time <= avail.end_time:
+#                             available = True
+#                             break
+            
+#             if not available:
+#                 # Add debug information to response
+#                 debug_info = {
+#                     "requested_time": app_time.strftime('%H:%M'),
+#                     "requested_day_model": day_of_week_model,
+#                     "same_day_availabilities": [
+#                         f"{avail.start_time}-{avail.end_time}" 
+#                         for avail in same_day_availabilities
+#                     ],
+#                     "prev_day_availabilities": [
+#                         f"{avail.start_time}-{avail.end_time}" 
+#                         for avail in prev_day_availabilities
+#                     ]
+#                 }
+#                 return Response({
+#                     "error": "Doctor not available at this time",
+#                     "debug": debug_info
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+                
+#         except Users.DoesNotExist:
+#             return Response({"error": "Medical professional not found"}, 
+#                           status=status.HTTP_404_NOT_FOUND)
+        
+#         # Create the appointment
+#         appointment = Appointment.objects.create(
+#             user=request.user,
+#             doctor=doctor,
+#             date=app_date,
+#             time=app_time,
+#             day_of_week=app_date.weekday(),  # Store Python weekday (Monday=0)
+#             status='pending'
+#         )
         
 #         return Response({
-#             "message": "Appointment confirmed. Patient notified to complete payment",
-#             "payment_deadline": payment_deadline.isoformat(),
-#             "amount": "₦5,000" if request.user.specialization.lower() in ['family medicine', 'internal medicine'] else "₦10,000"
-#         }, status=status.HTTP_200_OK)
-    
-# class ProcessPaymentView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def post(self, request, appointment_id):
-#         try:
-#             appointment = Appointment.objects.get(
-#                 id=appointment_id,
-#                 user=request.user,
-#                 status='confirmed'
-#             )
-#         except Appointment.DoesNotExist:
-#             return Response({"error": "Appointment not found or payment not required"}, 
-#                            status=status.HTTP_404_NOT_FOUND)
-        
-#         # Validate payment deadline
-#         if timezone.now() > appointment.payment_deadline:
-#             appointment.status = 'cancelled'
-#             appointment.save()
-#             return Response({"error": "Payment window expired. Appointment cancelled"}, 
-#                            status=status.HTTP_400_BAD_REQUEST)
-        
-#         # Process payment (integrate with your payment gateway)
-#         # This is a placeholder - implement actual payment processing
-#         payment_success = process_payment(request.user, appointment)
-        
-#         if payment_success:
-#             appointment.status = 'paid'
-#             appointment.save()
-            
-#             # Notify doctor
-#             send_doctor_confirmation_email(appointment)
-            
-#             return Response({
-#                 "message": "Payment successful! Appointment confirmed",
-#                 "appointment_id": appointment.id
-#             })
-#         else:
-#             return Response({"error": "Payment failed"}, 
-#                            status=status.HTTP_400_BAD_REQUEST)
-        
-
-
-# # Paystack integration
-# PAYSTACK_SECRET_KEY = "sk_test_1cb6996ee59d4c0079e6e5fc6f8hdjbu7638492"  # Replace with your actual secret key
-# PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize"
-# PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/"
-
-# class InitializePaymentView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-    
-#     def post(self, request, appointment_id):
-#         try:
-#             appointment = Appointment.objects.get(
-#                 id=appointment_id,
-#                 user=request.user,
-#                 status='confirmed'  # Only confirmed appointments can be paid
-#             )
-#         except Appointment.DoesNotExist:
-#             return Response(
-#                 {"error": "Appointment not found or not eligible for payment"},
-#                 status=status.HTTP_404_NOT_FOUND
-#             )
-        
-#         # Check payment deadline
-#         if timezone.now() > appointment.payment_deadline:
-#             appointment.status = 'cancelled'
-#             appointment.save()
-#             return Response(
-#                 {"error": "Payment window expired. Appointment cancelled"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-        
-#         # Determine price based on specialization
-#         specialization = appointment.doctor.specialization.lower()
-#         if specialization in ['family medicine', 'internal medicine']:
-#             amount = 5000 * 100  # 5000 Naira in kobo
-#         else:
-#             amount = 10000 * 100  # 10000 Naira in kobo
-        
-#         # Prepare Paystack payload
-#         payload = {
-#             "email": request.user.email,
-#             "amount": amount,
-#             "reference": f"APPT_{appointment_id}_{int(timezone.now().timestamp())}",
-#             "callback_url": f"{settings.FRONTEND_URL}/payment/verify/{appointment_id}/",
-#             "metadata": {
-#                 "appointment_id": appointment_id,
-#                 "user_id": request.user.id,
-#                 "doctor_id": appointment.doctor.id,
-#                 "specialization": specialization
-#             }
-#         }
-        
-#         headers = {
-#             "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
-#             "Content-Type": "application/json"
-#         }
-        
-#         # Initialize payment
-#         try:
-#             response = requests.post(PAYSTACK_INITIALIZE_URL, json=payload, headers=headers)
-#             response.raise_for_status()
-#             data = response.json()
-            
-#             # Save reference to appointment
-#             appointment.payment_reference = payload['reference']
-#             appointment.save()
-            
-#             return Response({
-#                 "authorization_url": data['data']['authorization_url'],
-#                 "access_code": data['data']['access_code'],
-#                 "reference": payload['reference']
-#             })
-#         except requests.exceptions.RequestException as e:
-#             return Response(
-#                 {"error": f"Payment initialization failed: {str(e)}"},
-#                 status=status.HTTP_503_SERVICE_UNAVAILABLE
-#             )
-
-# class VerifyPaymentView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-    
-#     def get(self, request, appointment_id):
-#         reference = request.query_params.get('reference')
-#         if not reference:
-#             return Response(
-#                 {"error": "Missing payment reference"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-        
-#         try:
-#             appointment = Appointment.objects.get(
-#                 id=appointment_id,
-#                 user=request.user,
-#                 payment_reference=reference
-#             )
-#         except Appointment.DoesNotExist:
-#             return Response(
-#                 {"error": "Appointment not found"},
-#                 status=status.HTTP_404_NOT_FOUND
-#             )
-        
-#         # Verify payment with Paystack
-#         headers = {"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
-#         try:
-#             response = requests.get(f"{PAYSTACK_VERIFY_URL}{reference}", headers=headers)
-#             response.raise_for_status()
-#             data = response.json()
-            
-#             if data['data']['status'] == 'success':
-#                 # Payment successful
-#                 appointment.status = 'paid'
-#                 appointment.save()
-                
-#                 # Send confirmation emails
-#                 send_payment_success_email(appointment)
-#                 send_doctor_confirmation_email(appointment)
-                
-#                 return Response({
-#                     "status": "success",
-#                     "message": "Payment verified successfully",
-#                     "appointment": AppointmentSerializer(appointment).data
-#                 })
-#             else:
-#                 # Payment failed
-#                 return Response({
-#                     "status": "failed",
-#                     "message": "Payment verification failed",
-#                     "gateway_response": data['data']['gateway_response']
-#                 }, status=status.HTTP_402_PAYMENT_REQUIRED)
-                
-#         except requests.exceptions.RequestException as e:
-#             return Response(
-#                 {"error": f"Payment verification failed: {str(e)}"},
-#                 status=status.HTTP_503_SERVICE_UNAVAILABLE
-#             )
-  
-
-# class PaystackWebhookView(APIView):
-#     def post(self, request):
-#         payload = request.data
-#         if payload['event'] == 'charge.success':
-#             reference = payload['data']['reference']
-#             try:
-#                 appointment = Appointment.objects.get(payment_reference=reference)
-#                 appointment.status = 'paid'
-#                 appointment.save()
-#                 # Send confirmation emails
-#             except Appointment.DoesNotExist:
-#                 pass
-#         return Response(status=status.HTTP_200_OK)
+#             "message": "Appointment booked successfully!",
+#             "appointment_id": appointment.id
+#         }, status=status.HTTP_201_CREATED)

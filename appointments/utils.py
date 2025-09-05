@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 import os
 from django.template.loader import render_to_string
 import pytz
+from django.utils import timezone
 
 def geocode_address(address):
     if settings.FAKE_GEOCODING:
@@ -188,8 +189,49 @@ def send_approval_email(appointment):
         sender_password=settings.EMAIL_HOST_PASSWORD
     )
 
+def send_doctor_cancellation_email(appointment):
+    subject = "Appointment Cancelled by Doctor"
+    body = f"""
+    Hello {appointment.user.first_name},\n\n
+    
+    Your appointment with Dr. {appointment.doctor.last_name} on 
+    {appointment.date} at {appointment.time} has been cancelled by the doctor.\n
+    
+    Reason: {appointment.cancellation_reason if appointment.cancellation_reason else 'No reason provided'}\n\n
+    
+    You can book a new appointment at:
+    {settings.FRONTEND_URL}dashboard/\n\n
+    
+    Thank you for choosing MediConnect!
+    """
+    
+    return send_email(
+        to_email=appointment.user.email,
+        email_port=settings.EMAIL_PORT,
+        sender_email=settings.EMAIL_HOST,
+        body=body,
+        title=subject,
+        sender_password=settings.EMAIL_HOST_PASSWORD
+    )
+
 
 # Convert Python's weekday (Monday=0) to model's weekday (Monday=1)
 def model_weekday(py_weekday):
     """Convert Python weekday (Monday=0) to model weekday (Monday=1)"""
     return (py_weekday + 1) % 7  # Sunday wraps from 6 to 0
+
+def _calculate_this_week_date_range(date):
+
+    start_of_week = date - timezone.timedelta(days=date.weekday())  # Monday
+    end_of_week = start_of_week + timezone.timedelta(days=6)  # Sunday
+    return start_of_week, end_of_week
+
+def _calculate_this_month_date_range(date):
+    start_of_month = date.replace(day=1)
+    if date.month == 12:
+        end_of_month = date.replace(year=date.year + 1, month=1, day=1) - timezone.timedelta(days=1)
+    else:
+        end_of_month = date.replace(month=date.month + 1, day=1) - timezone.timedelta(days=1)
+    return start_of_month, end_of_month
+
+# print(_calculate_this_week_date_range(timezone.now().date()))

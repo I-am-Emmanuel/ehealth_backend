@@ -4,7 +4,10 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
-from .validators import file_validators, validate_future_date, validate_phone_number
+from .validators import file_validators, validate_future_date, validate_phone_number, validate_image, validate_future_dob
+from cloudinary.models import CloudinaryField
+from datetime import date
+
 
 class User(AbstractUser):
     GENDER_CHOICES = [
@@ -17,12 +20,19 @@ class User(AbstractUser):
     
     first_name = models.CharField(max_length=50, blank=False)
     last_name = models.CharField(max_length=50, blank=False)
-    phone = models.CharField(max_length=11, blank=True, null=True, validators=[validate_phone_number], unique=True)
+    phone = models.CharField(max_length=11, blank=False, null=False, validators=[validate_phone_number], unique=True)
     email = models.EmailField(unique=True)
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True)
     address = models.TextField(blank=True, null=True)
-    profile_image = models.ImageField(validators=[file_validators],upload_to='profile_images/', null=True, blank=True)
-    health_record = models.FileField(validators=[file_validators, FileExtensionValidator("pdf")], null=True, blank=True, upload_to='health_records/')
+    date_of_birth = models.DateField(blank=False, null=False, default=date(2000, 1, 2), validators=[validate_future_dob])
+    profile_image = CloudinaryField('image', validators=[validate_image],
+                                    folder='Mediconnect/UserProfileImage/', 
+                                     null=True, blank=True,transformation={'quality': 'auto:best'},
+                                     format='jpg')
+    health_record = CloudinaryField('file', validators=[file_validators],
+                                    null=True, blank=True, 
+                                    folder='Mediconnect/UsersHealthRecord/',
+                                    resource_type='raw')
     license_expiry_date = models.DateField(
         null=True,
         blank=True,
@@ -39,8 +49,8 @@ class User(AbstractUser):
     )
 
     class Meta:
-        verbose_name = 'Medical Professional'
-        verbose_name_plural = 'Medical Professionals'
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
         ordering = ['last_name', 'first_name']
 
     def __str__(self):
@@ -57,6 +67,7 @@ class MedicalPracticioner(models.Model):
     gender = models.CharField(max_length=20)
     license_expiry_date = models.DateField(null=False)
     speciality = models.CharField(max_length=50, null=False)
+    date_of_birth = models.DateField(null=False, blank=False, default=date(2000, 1, 9), validators=[validate_future_dob])
 
 class PasswordResetKey(models.Model):
     key = models.CharField(max_length=10, blank=True, null=True)

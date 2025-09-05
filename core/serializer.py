@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 
 User = get_user_model()
+HEALTH_RECORD_ALLOWED_FILE_TYPES = ['application/pdf', 'application/msword']
 
 
 
@@ -16,6 +17,7 @@ class GeneralUserSerializer(serializers.ModelSerializer):
         fields = '__all__'
     
 
+PROFILE_IMAGE_ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
 class DoctorSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[
         UniqueValidator(queryset=User.objects.all(), message="This email is already in use.")
@@ -24,7 +26,7 @@ class DoctorSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'gender', 'email', 
+        fields = ('id', 'first_name', 'last_name', 'gender', 'email','phone', 
                 'speciality', 'hospital', 'license_expiry_date', 
                 'username', 'password', 'is_med', 'profile_image')
         extra_kwargs = {
@@ -34,10 +36,8 @@ class DoctorSerializer(serializers.ModelSerializer):
 
     def get_profile_image(self, obj):
         if obj.profile_image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_image.url)
-            return f"{settings.MEDIA_URL}{obj.profile_image}"
+            # Cloudinary URLs are already absolute
+            return obj.profile_image.url
         return None
 
     def create(self, validated_data):
@@ -47,32 +47,49 @@ class DoctorSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
-
+    
+    def validate_profile_image(self, value):
+        if value:
+            if value.size > 500 * 1024:  # 500KB
+                raise ValidationError("Profile image file size must not exceed 500KB.")
+            if value.content_type not in PROFILE_IMAGE_ALLOWED_FILE_TYPES:
+                raise ValidationError(f"Profile image file type must be one of {', '.join(PROFILE_IMAGE_ALLOWED_FILE_TYPES)}.") 
+        return value
 
 class PatientSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all(), message="This email is already in use.")
     ])
     class Meta:
         model = User
-        fields = ('id','first_name', 'last_name', 'gender', 'address', 'email', 'phone', 'username','password', 'profile_image', 'health_record')
+        fields = ('id','first_name', 'last_name', 'gender', 'address','date_of_birth', 'email', 'phone', 'username','password', 'profile_image', 'health_record')
         extra_kwargs = {'password': {'write_only': True}}
 
     def get_profile_image(self, obj):
         if obj.profile_image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_image.url)
-            return f"{settings.MEDIA_URL}{obj.profile_image}"
+            return obj.profile_image.url
         return None
-
+    
     def get_health_record(self, obj):
         if obj.health_record:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.health_record.url)
-            return f"{settings.MEDIA_URL}{obj.health_record}"
+            return obj.health_record.url
         return None
-
+    
+    def validate_health_record(self, value):
+        if value:
+            if value.size > 500 * 1024:  # 500KB
+                raise ValidationError("Health record file size must not exceed 500KB.")
+            if value.content_type not in HEALTH_RECORD_ALLOWED_FILE_TYPES:
+                raise ValidationError(f"Health record file type must be one of {', '.join(HEALTH_RECORD_ALLOWED_FILE_TYPES)}.")
+        return value
+    
+    def validate_profile_image(self, value):
+        if value:
+            if value.size > 500 * 1024:  # 500KB
+                raise ValidationError("Profile image file size must not exceed 500KB.")
+            if value.content_type not in PROFILE_IMAGE_ALLOWED_FILE_TYPES:
+                raise ValidationError(f"Profile image file type must be one of {', '.join(PROFILE_IMAGE_ALLOWED_FILE_TYPES)}.") 
+        return value
+            
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user

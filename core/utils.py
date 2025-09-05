@@ -27,4 +27,9 @@ def make_password_token_and_key(length, purpose=''):
 
 # make_password_token_and_key(24)
 
+def _calculate_weekly_range(date):
+    start_of_week = date - timezone.timedelta(days=date.weekday())  # Monday
+    end_of_week = start_of_week + timezone.timedelta(days=6)  # Sunday
+    return start_of_week, end_of_week
+
     

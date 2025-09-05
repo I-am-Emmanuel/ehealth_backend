@@ -20,6 +20,7 @@ class HospitalSerializer(serializers.ModelSerializer):
             'longitude', 'distance'
         ]
 
+
 class AvailabilitySerializer(serializers.ModelSerializer):
     day_of_week_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
 
@@ -33,6 +34,21 @@ class HospitalDoctorsListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'first_name', 'last_name', 'speciality', 'profile_image']
+
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    payment_deadline = serializers.DateTimeField(format="%Y-%m-%d %H:%M", read_only=True)
+    amount = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Appointment
+        fields = '__all__'
+        
+    def get_amount(self, obj):
+        if obj.doctor.speciality.lower() in ['family medicine', 'internal medicine']:
+            return "₦5,000"
+        return "₦10,000"
+    
 
 
 # class AppointmentSerializer(serializers.ModelSerializer):
@@ -65,15 +81,3 @@ class HospitalDoctorsListSerializer(serializers.ModelSerializer):
 #                 raise serializers.ValidationError("This time slot is already booked")
 #         return data
     
-class AppointmentSerializer(serializers.ModelSerializer):
-    payment_deadline = serializers.DateTimeField(format="%Y-%m-%d %H:%M", read_only=True)
-    amount = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Appointment
-        fields = '__all__'
-        
-    def get_amount(self, obj):
-        if obj.doctor.speciality.lower() in ['family medicine', 'internal medicine']:
-            return "₦5,000"
-        return "₦10,000"
