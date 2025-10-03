@@ -197,10 +197,13 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
+
 
 
 

@@ -24,6 +24,7 @@ from .tasks import check_payment_expiry
 import requests
 from django.conf import settings
 from datetime import datetime
+from django.db.models.aggregates import Count 
 
 
 Users = get_user_model()

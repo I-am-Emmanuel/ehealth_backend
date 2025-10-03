@@ -198,6 +198,8 @@ class CurrentUserView(APIView):
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+
 class ProfileImageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -207,16 +209,18 @@ class ProfileImageView(APIView):
             return Response({'error': 'No image provided'}, status=400)
         
         try:
-            validate_image(request.FILES['profile_image'])  # Validate image type and size
+            validate_image(request.FILES['profile_image'])
         except ValidationError as e:
-            print(f"Image validation error: {str(e)}")  # Debugging
             return Response({'error': str(e)}, status=400)
+        
         user = request.user
         try:
-            # Upload to Cloudinary with specific folder
+            # Generate a consistent public_id based on user ID
+            public_id = f"Mediconnect/UserProfileImage/user_{user.id}"
+            
             result = cloudinary.uploader.upload(
                 request.FILES['profile_image'],
-                folder="Mediconnect/UserProfileImage/",
+                public_id=public_id,  # Use consistent public_id for overwriting
                 resource_type="image",
                 overwrite=True,
                 invalidate=True,
@@ -226,21 +230,55 @@ class ProfileImageView(APIView):
                 ]
             )
             
-            # Delete old image if exists
-            if user.profile_image:
-                public_id = user.profile_image.public_id
-                cloudinary.uploader.destroy(public_id)
-            
             user.profile_image = result['secure_url']
             user.save()
             
-            serializer_class = DoctorSerializer if user.is_med else PatientSerializer
-            serializer = serializer_class(user, context={'request': request})
-            return Response(serializer.data)
+            return Response({
+                'message': 'Profile image updated successfully',
+                'profile_image': user.profile_image
+            }, status=200)
             
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            print(f"Error in profile image upload: {str(e)}")
+            return Response({'error': 'Internal server error'}, status=500)
 
+
+# class ProfileImageView(APIView):
+#     permission_classes = [permissions.IsAuthenticated]
+#     parser_classes = [MultiPartParser, FormParser]
+
+#     def put(self, request):
+#         if 'profile_image' not in request.FILES:
+#             return Response({'error': 'No image provided'}, status=400)
+        
+#         try:
+#             validate_image(request.FILES['profile_image'])
+#         except ValidationError as e:
+#             return Response({'error': str(e)}, status=400)
+        
+#         user = request.user
+#         try:
+#             # Upload to Cloudinary code remains the same...
+            
+#             user.profile_image = result['secure_url']
+#             user.save()
+            
+#             # Try serializers with error handling
+#             try:
+#                 serializer_class = DoctorSerializer if user.is_med else PatientSerializer
+#                 serializer = serializer_class(user, context={'request': request})
+#                 return Response(serializer.data)
+#             except Exception as serializer_error:
+#                 print(f"Serializer error: {serializer_error}")
+#                 # Fall back to simple response
+#                 return Response({
+#                     'message': 'Profile image updated successfully',
+#                     'profile_image': user.profile_image
+#                 }, status=200)
+            
+#         except Exception as e:
+#             print(f"Error in profile image upload: {str(e)}")
+#             return Response({'error': 'Internal server error'}, status=500)
 class ProfileHealthRecordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
