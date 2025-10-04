@@ -82,7 +82,7 @@ class DoctorAvailabilityDetailView(generics.RetrieveUpdateDestroyAPIView):
 class HospitalViewSet(ModelViewSet):
     serializer_class = HospitalSerializer
     queryset = Hospital.objects.all()
-    permission_classes = [permissions.AllowAny]
+    # permission_classes = [permissions.AllowAny]
 
 
 class NearbyHospitalsView(APIView):

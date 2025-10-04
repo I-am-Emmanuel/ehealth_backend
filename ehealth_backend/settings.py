@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 import os
 load_dotenv()
-# import dj_database_url
+import dj_database_url
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -35,36 +35,27 @@ SECRET_KEY = os.getenv('secret_keys')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
-
-# ALLOWED_HOSTS = ["ehealth-backend-rj0i.onrender.com"] 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-
+# ALLOWED_HOSTS = ['*'] 
+ALLOWED_HOSTS = ["ehealth-backend-rj0i.onrender.com"] 
 
 DEBUG = os.getenv('DEBUG', '').lower() == 'true'
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
+    # 'http://localhost:3000',
+    # 'http://127.0.0.1:3000',
     'https://ehealth-frontend.onrender.com'
     # 'https://ehealth-backend-rj0i.onrender.com/'
 ]
+CORS_ALLOWED_ORIGINS = [
+    'https://ehealth-frontend.onrender.com',
+]
 
-# CORS_ALLOWED_ORIGINS = [
-#     # 'https://ehealth-frontend.onrender.com',
-    
-#     'http://localhost:3000',
-#     'http://127.0.0.1:3000',
-#     'http://127.0.0.1:8000',
-# ]
-
-# CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
-
+CORS_ALLOW_CREDENTIALS = True
 # Application definition
 
-# SECURE_SSL_REDIRECT = True
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -140,29 +131,29 @@ WSGI_APPLICATION = 'ehealth_backend.wsgi.application'
 
 
 
-DATABASES = {
-    'default': {
-        # 'ENGINE': 'django.contrib.gis.db.backends.mysql',
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv("db_name"),
-        'HOST': os.getenv("db_host"),
-        'PASSWORD': os.getenv("db_password"),
-        'USER': os.getenv("db_user"),
-        'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        }
-    }
-}
-
 # DATABASES = {
-#     'default': dj_database_url.parse(
-#         os.getenv("DATABASE_URL"),
-#         conn_max_age=600,
-#         ssl_require=True
-#     )
+#     'default': {
+#         # 'ENGINE': 'django.contrib.gis.db.backends.mysql',
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': os.getenv("db_name"),
+#         'HOST': os.getenv("db_host"),
+#         'PASSWORD': os.getenv("db_password"),
+#         'USER': os.getenv("db_user"),
+#         'PORT': '3306',
+#         'OPTIONS': {
+#             'charset': 'utf8mb4',
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#         }
+#     }
 # }
+
+DATABASES = {
+    'default': dj_database_url.parse(
+        os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True
+    )
+}
 
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
