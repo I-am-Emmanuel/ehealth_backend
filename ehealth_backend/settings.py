@@ -36,7 +36,7 @@ SECRET_KEY = os.getenv('secret_keys')
 # SECURITY WARNING: don't run with debug turned on in production!
 
 # ALLOWED_HOSTS = ['*'] 
-ALLOWED_HOSTS = ["https://ehealth-backend-rj0i.onrender.com/"] 
+ALLOWED_HOSTS = ["ehealth-backend-rj0i.onrender.com"] 
 
 DEBUG = os.getenv('DEBUG', '').lower() == 'true'
 
