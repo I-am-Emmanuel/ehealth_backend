@@ -16,9 +16,7 @@ from datetime import timedelta
 import os
 load_dotenv()
 import dj_database_url
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+
 
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
@@ -35,7 +33,7 @@ SECRET_KEY = os.getenv('secret_keys')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
-# ALLOWED_HOSTS = ['*'] 
+# ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 ALLOWED_HOSTS = ["ehealth-backend-rj0i.onrender.com"] 
 
 DEBUG = os.getenv('DEBUG', '').lower() == 'true'
@@ -43,20 +41,24 @@ DEBUG = os.getenv('DEBUG', '').lower() == 'true'
 CSRF_TRUSTED_ORIGINS = [
     # 'http://localhost:3000',
     # 'http://127.0.0.1:3000',
-    'https://ehealth-frontend.onrender.com'
-    # 'https://ehealth-backend-rj0i.onrender.com/'
+    'https://ehealth-frontend.onrender.com',
+    'https://ehealth-backend-rj0i.onrender.com/'
 ]
 CORS_ALLOWED_ORIGINS = [
     'https://ehealth-frontend.onrender.com',
+    # 'http://localhost:3000',
+    # 'http://127.0.0.1:3000',
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-# Application definition
+# CORS_ALLOW_ALL_ORIGINS = True
 
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
+
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
