@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 import os
 load_dotenv()
-import dj_database_url
+# import dj_database_url
 
 
 
@@ -29,12 +29,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('secret_keys')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
 # ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-ALLOWED_HOSTS = ["ehealth-backend-rj0i.onrender.com"] 
+ALLOWED_HOSTS = ["249074264.pythonanywhere.com"] 
 
 DEBUG = os.getenv('DEBUG', '').lower() == 'true'
 
@@ -42,7 +42,8 @@ CSRF_TRUSTED_ORIGINS = [
     # 'http://localhost:3000',
     # 'http://127.0.0.1:3000',
     'https://ehealth-frontend.onrender.com',
-    'https://ehealth-backend-rj0i.onrender.com/'
+    # 'https://ehealth-backend-rj0i.onrender.com/'
+    'https://249074264.pythonanywhere.com/',
 ]
 CORS_ALLOWED_ORIGINS = [
     'https://ehealth-frontend.onrender.com',
@@ -51,7 +52,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
@@ -133,29 +134,29 @@ WSGI_APPLICATION = 'ehealth_backend.wsgi.application'
 
 
 
-# DATABASES = {
-#     'default': {
-#         # 'ENGINE': 'django.contrib.gis.db.backends.mysql',
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': os.getenv("db_name"),
-#         'HOST': os.getenv("db_host"),
-#         'PASSWORD': os.getenv("db_password"),
-#         'USER': os.getenv("db_user"),
-#         'PORT': '3306',
-#         'OPTIONS': {
-#             'charset': 'utf8mb4',
-#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-#         }
-#     }
-# }
-
 DATABASES = {
-    'default': dj_database_url.parse(
-        os.getenv("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True
-    )
+    'default': {
+        # 'ENGINE': 'django.contrib.gis.db.backends.mysql',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.getenv("db_name"),
+        'HOST': os.getenv("db_host"),
+        'PASSWORD': os.getenv("db_password"),
+        'USER': os.getenv("db_user"),
+        'PORT': '3306',
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        }
+    }
 }
+
+# DATABASES = {
+#     'default': dj_database_url.parse(
+#         os.getenv("DATABASE_URL"),
+#         conn_max_age=600,
+#         ssl_require=True
+#     )
+# }
 
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -213,7 +214,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 # Media files
 MEDIA_URL = '/media/'
