@@ -243,42 +243,6 @@ class ProfileImageView(APIView):
             return Response({'error': 'Internal server error'}, status=500)
 
 
-# class ProfileImageView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#     parser_classes = [MultiPartParser, FormParser]
-
-#     def put(self, request):
-#         if 'profile_image' not in request.FILES:
-#             return Response({'error': 'No image provided'}, status=400)
-        
-#         try:
-#             validate_image(request.FILES['profile_image'])
-#         except ValidationError as e:
-#             return Response({'error': str(e)}, status=400)
-        
-#         user = request.user
-#         try:
-#             # Upload to Cloudinary code remains the same...
-            
-#             user.profile_image = result['secure_url']
-#             user.save()
-            
-#             # Try serializers with error handling
-#             try:
-#                 serializer_class = DoctorSerializer if user.is_med else PatientSerializer
-#                 serializer = serializer_class(user, context={'request': request})
-#                 return Response(serializer.data)
-#             except Exception as serializer_error:
-#                 print(f"Serializer error: {serializer_error}")
-#                 # Fall back to simple response
-#                 return Response({
-#                     'message': 'Profile image updated successfully',
-#                     'profile_image': user.profile_image
-#                 }, status=200)
-            
-#         except Exception as e:
-#             print(f"Error in profile image upload: {str(e)}")
-#             return Response({'error': 'Internal server error'}, status=500)
 class ProfileHealthRecordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -318,15 +282,15 @@ class RegisterPatientAPI(generics.GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()  # Creates the user
+        user = serializer.save()  
         
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
         return Response({
             "user": PatientSerializer(user).data,  
-            "access": str(refresh.access_token),  # JWT access token
-            "refresh": str(refresh),              # JWT refresh token
+            "access": str(refresh.access_token), 
+            "refresh": str(refresh),              
         }, status=status.HTTP_201_CREATED)
     
 class ValidateDoctorLicense(generics.GenericAPIView):
@@ -359,13 +323,7 @@ class PasswordResetView(APIView):
         if not email:
             return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = get_object_or_404(User, email=email)
-        except User.DoesNotExist:
-            # Don't reveal whether user exists for security
-            return Response({'message': 'If this email exists, a password reset link has been sent'}, 
-                          status=status.HTTP_200_OK)
-
+        user = get_object_or_404(User, email=email)
         token = make_password_token_and_key(6, 'token')
         reset_activation_token = make_password_token_and_key(24, 'reset_activation')
         expiry_date = timezone.now() + timezone.timedelta(minutes=15)
@@ -391,7 +349,7 @@ class PasswordResetView(APIView):
         )
 
         if not email_sent:
-            return Response({'error': 'Failed to send email'}, 
+            return Response({'message': 'Failed to send email'}, 
                           status=status.HTTP_501_NOT_IMPLEMENTED)
 
         return Response({'message': 'Password reset instructions sent to your email'}, 
