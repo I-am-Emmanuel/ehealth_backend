@@ -22,7 +22,7 @@ class User(AbstractUser):
     last_name = models.CharField(max_length=50, blank=False)
     phone = models.CharField(max_length=11, blank=False, null=False, validators=[validate_phone_number], unique=True)
     email = models.EmailField(unique=True)
-    gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True)
+    gender = models.CharField(max_length=20, choices=GENDER_CHOICES, null=False, blank=False, default='Undefine')
     address = models.TextField(blank=True, null=True)
     date_of_birth = models.DateField(blank=False, null=False, default=date(2000, 1, 2), validators=[validate_future_dob])
     profile_image = CloudinaryField('image', validators=[validate_image],
