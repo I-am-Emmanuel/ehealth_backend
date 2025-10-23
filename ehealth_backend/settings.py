@@ -33,6 +33,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 #SECURITY  don't run with debug turned on in production!
+ALLOWED_HOST = ["249074264.pythonanywhere.com"]
 
 CSRF_TRUSTED_ORIGINS = [
     # 'http://localhost:3000',
