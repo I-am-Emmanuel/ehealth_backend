@@ -34,16 +34,17 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 #SECURITY  don't run with debug turned on in production!
 
-ALLOWED_HOSTS = ["249074264.pythonanywhere.com"]
-
-DEBUG = os.getenv('DEBUG', '').lower() == 'true'
-
 CSRF_TRUSTED_ORIGINS = [
     # 'http://localhost:3000',
     # 'http://127.0.0.1:3000',
     'https://ehealth-frontend.onrender.com',
-    # 'https://ehealth-backend-rj0i.onrender.com/',
+<<<<<<< Updated upstream
+    # 'https://ehealth-backend-rj0i.onrender.com/'
     'https://249074264.pythonanywhere.com/',
+=======
+    # 'https://ehealth-backend-rj0i.onrender.com/',
+    "https://249074264.pythonanywhere.com/"
+>>>>>>> Stashed changes
 ]
 
 CORS_ALLOWED_ORIGINS = [
