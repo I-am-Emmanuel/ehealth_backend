@@ -200,7 +200,7 @@ def send_doctor_cancellation_email(appointment):
     Reason: {appointment.cancellation_reason if appointment.cancellation_reason else 'No reason provided'}\n\n
     
     You can book a new appointment at:
-    {settings.FRONTEND_URL}dashboard/\n\n
+    {settings.FRONTEND_URL}\n\n
     
     Thank you for choosing MediConnect!
     """
