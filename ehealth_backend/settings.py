@@ -68,8 +68,6 @@ CSRF_COOKIE_SECURE = True
 #     'http://127.0.0.1:3000',
 # ]
 
-
-
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -172,7 +170,7 @@ DATABASES = {
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUD_NAME'),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+    'API_SECRET': os.getenv('CLOUDINARY_SECRET_KEY'),
 }
 # Development setting
 GEOCODING_USER_AGENT = "MediConnectDev/1.0 (olaifaemmanueloluwatobiloba@gmail.com)"
