@@ -1,2 +1,4 @@
 .env
 venv/
+fixtures/
+__pycache__/
