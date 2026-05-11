@@ -46,8 +46,8 @@ class AppointmentSerializer(serializers.ModelSerializer):
         
     def get_amount(self, obj):
         if obj.doctor.speciality.lower() in ['family medicine', 'internal medicine']:
-            return "₦5,000"
-        return "₦10,000"
+            return "₦20,000"
+        return "₦50,000"
     
 
 

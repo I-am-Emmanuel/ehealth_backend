@@ -13,6 +13,81 @@ from django.template.loader import render_to_string
 import pytz
 from django.utils import timezone
 
+def ai_match(symptoms_text: str) -> dict:
+    """
+    Simple AI-like symptom matcher.
+    Returns matched speciality and confidence score.
+    """
+
+    symptom_keywords = {
+        "Family medicine": [
+            "fever", "cough", "cold", "body pain", "weakness",
+            "headache", "fatigue", "chills", "flu", "infection"
+        ],
+        "cardiology": [
+            "chest pain", "heart pain", "palpitations",
+            "shortness of breath", "high blood pressure",
+            "irregular heartbeat", "fainting", "dizziness"
+        ],
+        "dermatology": [
+            "rash", "acne", "eczema", "itching",
+            "skin infection", "boils", "psoriasis"
+        ],
+        "orthopedics": [
+            "joint pain", "back pain", "knee pain",
+            "fracture", "bone pain", "arthritis"
+        ],
+        "neurology": [
+            "seizure", "migraine", "stroke",
+            "numbness", "paralysis", "tremor"
+        ],
+        "pediatrics": [
+            "child fever", "baby cough", "poor feeding",
+            "newborn", "vaccination"
+        ],
+        "gastroenterology": [
+            "stomach pain", "abdominal pain",
+            "diarrhea", "vomiting", "heartburn"
+        ],
+        "psychiatry": [
+            "depression", "anxiety", "insomnia",
+            "mood swings", "stress", "panic attacks"
+        ],
+            "endocrinology": [
+                "diabetes", "thyroid", "hormone imbalance",
+                "weight gain", "weight loss"
+            ],
+            "ophthalmology": [
+                "eye pain", "vision loss", "red eye",
+                "dry eye", "cataract"
+            ],
+            "oncology": [
+                "cancer", "tumor", "lump", "unexplained weight loss",
+                "night sweats", "fatigue"
+            ],
+            'orthopedics': [
+                "joint pain", "back pain", "knee pain",
+                "fracture", "bone pain", "arthritis"
+            ],
+    }
+
+    symptoms_text = symptoms_text.lower()
+    best_match = None
+    highest_score = 0
+
+    for speciality, keywords in symptom_keywords.items():
+        score = sum(1 for keyword in keywords if keyword in symptoms_text)
+        if score > highest_score:
+            highest_score = score
+            best_match = speciality
+
+    confidence = min(highest_score * 30, 95) if best_match else 0
+
+    return {
+        "speciality": best_match,
+        "confidence": confidence
+    }
+
 def geocode_address(address):
     if settings.FAKE_GEOCODING:
         return settings.DEFAULT_LATITUDE, settings.DEFAULT_LONGITUDE
@@ -164,7 +239,7 @@ def send_doctor_confirmation_email(appointment):
         sender_password=settings.EMAIL_HOST_PASSWORD
     )
 
-def send_approval_email(appointment):
+def send_confirm_email(appointment):
     subject = "Appointment Approved"
     body = f"""
     Hello {appointment.user.first_name},\n\n
@@ -188,6 +263,30 @@ def send_approval_email(appointment):
         title=subject,
         sender_password=settings.EMAIL_HOST_PASSWORD
     )
+# def send_approval_email(appointment):
+#     subject = "Appointment Approved"
+#     body = f"""
+#     Hello {appointment.user.first_name},\n\n
+    
+#     Your appointment with Dr. {appointment.doctor.last_name} on 
+#     {appointment.date} at {appointment.time} has been approved but not yet confirmed.\n
+    
+#     Please ensure you make the payment on the doctor's details within 2hrs so that your consultation will \
+#         be finalised with Dr {appointment.doctor.first_name}.\n\n
+    
+#     Payment Details:
+#     Log in to your account, under you appointment section, you will find the payment link for this appointment.\n\n
+    
+#     Thank you for choosing MediConnect!
+#     """
+#     return send_email(
+#         to_email=appointment.user.email,
+#         email_port=settings.EMAIL_PORT,
+#         sender_email=settings.EMAIL_HOST,
+#         body=body,
+#         title=subject,
+#         sender_password=settings.EMAIL_HOST_PASSWORD
+#     )
 
 def send_doctor_cancellation_email(appointment):
     subject = "Appointment Cancelled by Doctor"

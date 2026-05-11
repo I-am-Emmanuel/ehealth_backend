@@ -26,7 +26,6 @@ User = get_user_model()
 
 class LoginAPIView(APIView):
     permission_classes = (permissions.AllowAny,)
-    
     def post(self, request):
         try:
             serializer = AuthTokenSerializer(
@@ -35,7 +34,6 @@ class LoginAPIView(APIView):
             )
             serializer.is_valid(raise_exception=True)
             user = serializer.validated_data['user']
-            
             refresh = RefreshToken.for_user(user)
             
             return Response({
@@ -51,7 +49,7 @@ class LoginAPIView(APIView):
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
-            print(f"Login error: {str(e)}")  # Debugging
+            print(f"Login error: {str(e)}")
             return Response(
                 {"detail": "Authentication failed. Please check your credentials."},
                 status=status.HTTP_401_UNAUTHORIZED

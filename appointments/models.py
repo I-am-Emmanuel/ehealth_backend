@@ -169,7 +169,7 @@ class Appointment(models.Model):
         # Set completion date when status changes to completed
         if self.status == 'completed' and not self.completion_date:
             self.completion_date = timezone.now()
-            
+        
         super().save(*args, **kwargs)
 
     def get_status_color(self):

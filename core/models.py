@@ -4,7 +4,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
-from .validators import file_validators, validate_future_date, validate_phone_number, validate_image, validate_future_dob
+from .validators import *
 from cloudinary.models import CloudinaryField
 from datetime import date
 

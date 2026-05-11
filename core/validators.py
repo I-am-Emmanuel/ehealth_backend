@@ -10,7 +10,6 @@ PROFILE_IMAGE_ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
 import mimetypes
 
 
-
 def file_validators(file):
     mime_type, _ = mimetypes.guess_type(file.name)
     print(f"Validating file: {file.name}, MIME type: {mime_type}")  # Debugging

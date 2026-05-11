@@ -17,7 +17,7 @@ urlpatterns = [
     # path('doctors/', DoctorListView.as_view(), name='doctor-list'),
     # path('doctor/<int:pk>/', DoctorDetailView.as_view(), name='doctor-detail'),
     path('license_check', ValidateDoctorLicense.as_view()),
-    path('login/', LoginAPIView.as_view(), name='login'),
+    # path('login/', LoginAPIView.as_view(), name='login'),
     path('profile-image/', ProfileImageView.as_view(), name='profile-image'),
     path('profile-health-record/', ProfileHealthRecordView.as_view(), name='health-record'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
