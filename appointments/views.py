@@ -157,7 +157,7 @@ class HospitalBySpeciality(APIView):
 
 
 class HospitalBySymptoms(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         symptoms = request.query_params.get('symptoms')
@@ -166,7 +166,7 @@ class HospitalBySymptoms(APIView):
 
         dict_result = ai_match(symptoms)
 
-        print("AI RESULT:", dict_result)
+        # print("AI RESULT:", dict_result)
 
         matched_doctors = Users.objects.filter(
             is_med=True,
@@ -219,7 +219,6 @@ class HospitalDoctorsListView(APIView):
                 hospital=hospital,
                 license_expiry_date__gte=today
             )
-
             # Apply speciality filter if provided
             if speciality:
                 doctors = doctors.filter(speciality__icontains=speciality)
